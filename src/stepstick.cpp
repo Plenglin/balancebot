@@ -1,48 +1,50 @@
 #include "stepstick.hpp"
 
-StepStick::StepStick(int en, int step, int dir, unsigned int period, bool initialEnable) :
-    pin_en(en), pin_step(step), pin_dir(dir), period(period) {
+StepStick::StepStick(int en, int step, int dir, int ppr) :
+    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr) {
 
     pinMode(en, OUTPUT);
     pinMode(step, OUTPUT);
     pinMode(dir, OUTPUT);
-    setEnabled(initialEnable);
+    setEnabled(true);
 }
 
 void StepStick::setEnabled(bool state) {
-    digitalWrite(pin_en, !state);
-    this->enabled = state;
+    if (enabled != state) {
+        enabled = state;
+        digitalWrite(pin_en, !state);
+    }
 }
 
-void StepStick::setPeriod(unsigned int period) {
-    this->period = period;
-}
-
-void StepStick::resetSteps() {
-    resetSteps(0);
-}
-
-void StepStick::resetSteps(long steps) {
-    this->steps = steps;
-}
-
-void StepStick::stepBy(long steps) {
-    if (steps < 0) {
-        steps = -steps;
-        this->steps -= steps;
-        digitalWrite(pin_dir, true);
+void StepStick::setVelocity(long velocity) {
+    if (velocity < 0) {
+        direction = -1;
+        velocity = -velocity;
+    } else if (velocity > 0) {
+        direction = 1;
     } else {
-        this->steps += steps;
-        digitalWrite(pin_dir, false);
+        direction = 0;
+        return;
     }
-    while (steps--) {
-        digitalWrite(pin_step, true);
-        delay(1);
-        digitalWrite(pin_step, false);
-        delay(period - 1);
-    }
+    period = 1000000000 / (abs(velocity) * ppr);
 }
 
-void StepStick::stepTo(long steps) {
-    stepBy(steps - this->steps);
+void StepStick::step(int dir) {
+    setEnabled(true);
+    nextStep = micros() + period;
+    digitalWrite(pin_dir, dir < 0);
+    digitalWrite(pin_step, true);
+    delayMicroseconds(STEPSTICK_MIN_DELAY);
+    digitalWrite(pin_step, false);    
+}
+
+unsigned long StepStick::getNextStep() {
+    return nextStep;
+}
+
+void StepStick::update() {
+    unsigned long currentTime = micros();
+    if (currentTime >= nextStep) {
+        step(direction);
+    }
 }

@@ -1,6 +1,6 @@
 #include "pid.hpp"
 
-PID::PID(int kp, int ki, int kd) : kp(kp), ki(ki), kd(kd), lastError(0), sum(0) {
+PID::PID(int kp, int ki, int kd) : kp(kp), ki(ki), kd(kd), lastError(0), sum(0), target(0) {
 
 }
 
@@ -12,4 +12,8 @@ long PID::pushError(long error, int dt) {
 
     lastError = error;
     return out;
+}
+
+void PID::setTarget(long target) {
+    this->target = target;
 }

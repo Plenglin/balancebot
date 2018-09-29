@@ -2,21 +2,32 @@
 
 #include <Arduino.h>
 
-class StepStick {
-    int pin_en;
-    int pin_step;
-    int pin_dir;
+#define STEPSTICK_MIN_DELAY 2
 
-    long steps;
-    unsigned int period;
-    bool enabled;
+/**
+ * A StepStick effectively used as a DC motor.
+ */
+class StepStick {
+    private:
+        int pin_en;
+        int pin_step;
+        int pin_dir;
+        
+        int ppr;
+        long steps;
+        bool enabled;
+
+        unsigned long nextStep;
+        unsigned int period;
+        int direction;
     public:
-        StepStick(int en, int step, int dir, unsigned int period, bool initialEnable);
-        void stepTo(long steps);
-        void stepBy(long steps);
+        StepStick(int en, int step, int dir, int ppr);
+        void step(int dir);
         void setEnabled(bool state);
-        void setPeriod(unsigned int period);
-        long getSteps();
-        void resetSteps(long steps);
-        void resetSteps();
+        /**
+         * in cmillirevolutions/second
+         */
+        void setVelocity(long period);
+        unsigned long getNextStep();
+        void update();
 };
