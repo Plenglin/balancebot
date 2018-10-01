@@ -9,6 +9,7 @@
 #define IN_ARG_SET_ECHO_PARAMS 'E'
 #define IN_ARG_SET_YAW 'Y'
 #define IN_ARG_SET_PITCH 'P'
+//#define IN_AR
 
 #define PARAM_ECHO_SONAR 0x1
 #define PARAM_ECHO_ROTATION 0x2

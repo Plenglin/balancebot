@@ -1,5 +1,6 @@
 #pragma once
 
+#define SONAR_MIN_DELAY 100
 #define INPUT_BUFFER_SIZE 100
 #define STEPPER_PPR 72
 

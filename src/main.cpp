@@ -1,4 +1,4 @@
-#define LOGLEVEL_INFO
+#define LOGLEVEL_DEBUG
 
 #include <Arduino.h>
 #include <I2Cdev.h>
@@ -21,6 +21,8 @@ char inputCommand;
 String argBuffer = "";
 
 uint8_t fifoBuffer[64];
+float ypr[3] = {0};
+VectorFloat gravity;
 MPU6050 mpu;
 Quaternion rotation;
 int sonarWidth = 0;
@@ -31,7 +33,7 @@ StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR);
 StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR);
 
 PID pidSteps(0, 0, 0);
-PID pidPitch(1, 0, 0);
+PID pidPitch(100, 0, 0);
 PID pidYaw(0, 0, 0);
 
 void onEchoInterrupt() {
@@ -88,14 +90,17 @@ void setup() {
 void loop() {
     if (mpuReady) {
         mpu.dmpGetQuaternion(&rotation, fifoBuffer);
+        mpu.dmpGetGravity(&gravity, &rotation);
+        mpu.dmpGetYawPitchRoll(ypr, &rotation, &gravity);
+
         unsigned long currentTime = micros();
         unsigned long delta = currentTime - lastRotationUpdate;
         lastRotationUpdate = currentTime;
 
-        long outYaw = pidYaw.pushError(3, delta);
-        //long outPitch = pidPitch.pushError(3, delta);
-        left.setVelocity(outYaw);
-        right.setVelocity(outYaw);
+        long outYaw = 0;//pidYaw.pushError(0, delta);
+        long outPitch = pidPitch.pushError(ypr[1] - 0, delta);
+        left.setVelocity(outYaw + outPitch);
+        right.setVelocity(outYaw - outPitch);
         mpuReady = false;
         writeRotationData();
     }
@@ -103,7 +108,7 @@ void loop() {
     if (sonarReady) {
         sonarWidth = pulseIn(PIN_SONAR_ECHO, true);
         digitalWrite(PIN_SONAR_TRIG, true);
-        delay(1);
+        delayMicroseconds(SONAR_MIN_DELAY);
         digitalWrite(PIN_SONAR_TRIG, false);
         sonarReady = false;
         writeSonarData();
@@ -117,7 +122,7 @@ void loop() {
             case IN_ARG_SET_PITCH:
                 pidPitch.setTarget(argBuffer.toInt());
                 break;
-            case IN_ARG_SET_YAW:
+            case IN_ARG_SET_YAW: 
                 pidYaw.setTarget(argBuffer.toInt());
                 break;
         }

@@ -3,6 +3,7 @@
 #include "ioconstants.h"
 
 #ifdef LOGLEVEL_DEBUG
+#define DEBUG
 #define LOGLEVEL_INFO
 #define LOG_D(a) Serial.print(OUT_ARG_LOG"D"); Serial.println(a);
 #else
