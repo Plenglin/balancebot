@@ -7,9 +7,9 @@
 #include "stepstick.hpp"
 #include "pid.hpp"
 
-#include "constants.h"
-#include "ioconstants.h"
-#include "log.h"
+#include "constants.hpp"
+#include "ioconstants.hpp"
+#include "log.hpp"
 
 volatile bool cmdReady = false;
 volatile bool mpuReady = false;
@@ -82,7 +82,7 @@ void setup() {
         LOG_I("Successfully enabled MPU6050");
         mpu.setDMPEnabled(true);
     } else {
-        LOG_E("DMP failed to initialize! Error code " + status);
+        LOG_F("DMP failed to initialize! Error code " + status);
         while (true);
     }
 }
@@ -130,7 +130,6 @@ void loop() {
         cmdReady = false;
     }
 
-    unsigned long currentTime = micros();
     left.update();
     right.update();
 }

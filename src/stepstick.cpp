@@ -1,5 +1,6 @@
 #include "stepstick.hpp"
 
+
 StepStick::StepStick(int en, int step, int dir, int ppr) :
     pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr) {
 
@@ -45,6 +46,7 @@ unsigned long StepStick::getNextStep() {
 void StepStick::update() {
     unsigned long currentTime = micros();
     if (currentTime >= nextStep) {
+        nextStep = currentTime + period;
         step(direction);
     }
 }

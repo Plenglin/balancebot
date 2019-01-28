@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ioconstants.h"
+#include "ioconstants.hpp"
 
 #ifdef LOGLEVEL_DEBUG
 #define DEBUG
@@ -25,7 +25,15 @@
 #endif
 
 #ifdef LOGLEVEL_ERROR
+#define LOGLEVEL_FATAL
 #define LOG_E(a) Serial.print(OUT_ARG_LOG"W"); Serial.println(a);
 #else
 #define LOG_E(a)
 #endif
+
+#ifdef LOGLEVEL_FATAL
+#define LOG_F(a) Serial.print(OUT_ARG_LOG"F"); Serial.println(a);
+#else
+#define LOG_F(a)
+#endif
+

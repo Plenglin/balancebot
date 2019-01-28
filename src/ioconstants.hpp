@@ -1,10 +1,11 @@
 #pragma once
 
-#define OUT_ARG_LOG "D"
+#define OUT_ARG_LOG "L"
 #define OUT_ARG_ECHO "E"
 #define OUT_ARG_IMU "I"
 #define OUT_ARG_SONAR "S"
 #define OUT_ARG_ACK "OK"
+#define OUT_ARG_ERR "ER"
 
 #define IN_ARG_SET_ECHO_PARAMS 'E'
 #define IN_ARG_SET_YAW 'Y'
