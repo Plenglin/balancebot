@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <I2Cdev.h>
-#include <MPU6050_6Axis_MotionApps20.h>
+#include <MPU6050.h>
 
 #include "stepstick.hpp"
 #include "pid.hpp"
@@ -15,16 +15,16 @@ volatile bool cmdReady = false;
 volatile bool mpuReady = false;
 volatile bool sonarReady = false;
 
-uint8_t echoParams;
+uint8_t echoParams = PARAM_ECHO_ROTATION;
 
 char inputCommand;
 String argBuffer = "";
 
 uint8_t fifoBuffer[64];
 float ypr[3] = {0};
-VectorFloat gravity;
+//VectorFloat gravity;
 MPU6050 mpu;
-Quaternion rotation;
+//Quaternion rotation;
 int sonarWidth = 0;
 
 unsigned long lastRotationUpdate = 0;
@@ -58,7 +58,7 @@ void serialEvent() {
 
 void writeRotationData() {
     if (echoParams & PARAM_ECHO_ROTATION) {
-        Serial.println(OUT_ARG_IMU + String(rotation.w) + ";" + rotation.x + ";" + rotation.y + ";" + rotation.z);
+        //Serial.println(OUT_ARG_IMU + String(rotation.w) + ";" + rotation.x + ";" + rotation.y + ";" + rotation.z);
     }
 }
 
@@ -71,27 +71,35 @@ void writeSonarData() {
 void setup() {
     Serial.begin(COM_BAUD);
 
+    LOG_I("Initializing...")
+
+    #ifdef JANKY_PIN_13
+    pinMode(13, OUTPUT);
+    digitalWrite(13, HIGH);
+    #endif
+
     argBuffer.reserve(INPUT_BUFFER_SIZE);
 
-    attachInterrupt(PIN_SONAR_ECHO, onEchoInterrupt, RISING);
-    attachInterrupt(PIN_IMU_INT, onIMUInterrupt, RISING);
+    pinMode(PIN_SONAR_ECHO, INPUT);
+    pinMode(PIN_IMU_INT, INPUT);
 
     mpu.setInterruptMode(true);
-    int status = mpu.dmpInitialize();
-    if (status == 0) {
-        LOG_I("Successfully enabled MPU6050");
-        mpu.setDMPEnabled(true);
-    } else {
-        LOG_F("DMP failed to initialize! Error code " + status);
-        while (true);
-    }
+    //attachInterrupt(PIN_SONAR_ECHO, onEchoInterrupt, RISING);
+    attachInterrupt(PIN_IMU_INT, onIMUInterrupt, FALLING);
 }
 
 void loop() {
+    digitalWrite(13, (millis() % 1000) > 500);
+
+    int x, y, z;
+    LOG_D("asdf")
+    mpu.getAcceleration(&x, &y, &z);
+    LOG_D(x)
     if (mpuReady) {
-        mpu.dmpGetQuaternion(&rotation, fifoBuffer);
-        mpu.dmpGetGravity(&gravity, &rotation);
-        mpu.dmpGetYawPitchRoll(ypr, &rotation, &gravity);
+        LOG_D("received MPU interrupt")
+        //mpu.dmpGetQuaternion(&rotation, fifoBuffer);
+        //mpu.dmpGetGravity(&gravity, &rotation);
+        //mpu.dmpGetYawPitchRoll(ypr, &rotation, &gravity);
 
         unsigned long currentTime = micros();
         unsigned long delta = currentTime - lastRotationUpdate;
@@ -105,14 +113,15 @@ void loop() {
         writeRotationData();
     }
 
-    if (sonarReady) {
+    /*if (sonarReady) {
+        LOG_D("received sonar interrupt")
         sonarWidth = pulseIn(PIN_SONAR_ECHO, true);
         digitalWrite(PIN_SONAR_TRIG, true);
         delayMicroseconds(SONAR_MIN_DELAY);
         digitalWrite(PIN_SONAR_TRIG, false);
         sonarReady = false;
         writeSonarData();
-    }
+    }*/
 
     if (cmdReady) {
         switch (inputCommand) {
@@ -130,6 +139,6 @@ void loop() {
         cmdReady = false;
     }
 
-    left.update();
-    right.update();
+    //left.update();
+    //right.update();
 }
