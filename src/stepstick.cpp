@@ -11,10 +11,8 @@ StepStick::StepStick(int en, int step, int dir, int ppr, bool reverse, long maxA
 }
 
 void StepStick::setEnabled(bool state) {
-    if (enabled != state) {
-        enabled = state;
-        digitalWrite(pin_en, !state);
-    }
+    enabled = state;
+    digitalWrite(pin_en, !state);
 }
 
 void StepStick::setVelocity(long velocity) {
@@ -36,7 +34,7 @@ void StepStick::setTargetVelocity(long target) {
 }
 
 void StepStick::step(int dir) {
-    setEnabled(true);
+    //setEnabled(true);
     nextStep = micros() + period;
     digitalWrite(pin_dir, (dir < 0) ^ reverse);
     digitalWrite(pin_step, true);
@@ -53,7 +51,7 @@ void StepStick::update() {
     unsigned long dt = currentTime - lastUpdate;
 
     long vError = targetVelocity - velocity;
-    if (abs(vError) * dt < (long) (maxAccel * 1000L)) {
+    if ((unsigned long) (abs(vError) * dt) < (unsigned long) (maxAccel * 1000L)) {
         setVelocity(targetVelocity);
     } else if (vError > 0) {
         setVelocity(velocity + maxAccel);

@@ -5,7 +5,6 @@
 #include <MPU6050.h>
 
 #include "fixedpoint.hpp"
-#include "complementaryfilter.hpp"
 #include "stepstick.hpp"
 #include "pid.hpp"
 
@@ -37,14 +36,14 @@ int sonarWidth = 0;
 
 unsigned long lastRotationUpdate = 0;
 
-StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR, true, 1500);
-StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR, false, 1500);
+StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR, true, 1000);
+StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR, false, 1000);
 
 PID pidSteps(0, 0, 0);
-PID pidPitch(fixed(3000), fixed(0), fixed(0));
+PID pidPitch(100, 0, 0);
 PID pidYaw(0, 0, 0);
 
-fixed pitch;  // millidegrees? idk wtf these are
+float pitch;  // millidegrees? idk wtf these are
 
 void onEchoInterrupt() {
     sonarReady = true;
@@ -86,20 +85,24 @@ void updateIMU() {
 
     //fPitch.update(A_X / A_Y, appxTan.getUpper());
     unsigned long currentTime = micros();
-    int dt = (int) (currentTime - lastRotationUpdate);
+    unsigned long dt = currentTime - lastRotationUpdate;
     lastRotationUpdate = currentTime;
 
-    fixed gy(G_Y), ax(A_X), az(A_Z);
-    gy *= fixed(2) * dt / 1000;
-    fixed ratio = -ax / az;
-    fixed accAngle = atan(ratio);
-    pitch = (pitch + gy) * fixed(250) + accAngle * fixed(4468);
+    //fixed gy(G_Y), ax(A_X), az(A_Z);
+    float gy = G_Y * 0.0305176 * dt / 1000000;
+    float ax = A_X;
+    float az = A_Z;
+    //float ratio = -ax / az;
+    float accAngle = atan2(az, ax) * 57.29577794;
+    pitch = (pitch + gy) * 0.995 + accAngle * 0.005;
+    //pitch = accAngle;
 
     writeRotationData();
-    long outPitch = -pidPitch.pushError(pitch, dt).getValue() >> 8;
-    LOG_D(pitch.toString() + "\t" + String(outPitch));
+    long outPitch = -pidPitch.pushError(pitch + 90, dt);
+    LOG_D(String(pitch) + "\t" + String(outPitch));
     left.setTargetVelocity(outPitch);
     right.setTargetVelocity(outPitch);
+    LOG_D(currentTime)
 }
 
 void setup() {
@@ -126,16 +129,16 @@ void setup() {
     mpu.setIntDataReadyEnabled(true);
     //attachInterrupt(PIN_SONAR_ECHO, onEchoInterrupt, RISING);
     //attachInterrupt(PIN_IMU_INT, onIMUInterrupt, FALLING);
-    left.setEnabled(true);
-    right.setEnabled(true);
-    left.setTargetVelocity(3000);
+    left.setEnabled(false);
+    right.setEnabled(false);
+    //left.setTargetVelocity(10000);
     //right.setVelocity(3000);
 }
 
 void loop() {
     digitalWrite(13, (millis() % 1000) > 500);
 
-    updateIMU();
+    //updateIMU();
 
     /*if (sonarReady) {
         LOG_D("received sonar interrupt")

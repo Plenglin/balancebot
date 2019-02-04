@@ -3,15 +3,15 @@
 
 class PID {
     private:
-        fixed kp;
-        fixed ki;
-        fixed kd;
+        float kp;
+        float ki;
+        float kd;
 
-        fixed lastError;
-        fixed sum;
-        fixed target;
+        float lastError;
+        float sum;
+        float target;
     public:
-        PID(fixed kp, fixed ki, fixed kd);
-        fixed pushError(fixed error, int dt);
-        void setTarget(fixed target);
+        PID(float kp, float ki, float kd);
+        float pushError(float error, int dt);
+        void setTarget(float target);
 };
