@@ -4,6 +4,8 @@
 #include <I2Cdev.h>
 #include <MPU6050.h>
 
+#include "fixedpoint.hpp"
+#include "complementaryfilter.hpp"
 #include "stepstick.hpp"
 #include "pid.hpp"
 
@@ -11,8 +13,16 @@
 #include "ioconstants.hpp"
 #include "log.hpp"
 
+// if reorientation is necessary
+#define A_X aRawX
+#define A_Y aRawY
+#define A_Z aRawZ
+#define G_X gRawX
+#define G_Y gRawY
+#define G_Z gRawZ
+
 volatile bool cmdReady = false;
-volatile bool mpuReady = false;
+volatile bool imuReady = false;
 volatile bool sonarReady = false;
 
 uint8_t echoParams = PARAM_ECHO_ROTATION;
@@ -21,10 +31,8 @@ char inputCommand;
 String argBuffer = "";
 
 uint8_t fifoBuffer[64];
-float ypr[3] = {0};
-//VectorFloat gravity;
+int16_t aRawX, aRawY, aRawZ, gRawX, gRawY, gRawZ;
 MPU6050 mpu;
-//Quaternion rotation;
 int sonarWidth = 0;
 
 unsigned long lastRotationUpdate = 0;
@@ -35,13 +43,17 @@ StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR);
 PID pidSteps(0, 0, 0);
 PID pidPitch(100, 0, 0);
 PID pidYaw(0, 0, 0);
+//ComplementaryFilter fPitch(fixed(0,240));
+//ComplementaryFilter fAccZ(fixed(0,240));
+
+fixed pitch;
 
 void onEchoInterrupt() {
     sonarReady = true;
 }
 
 void onIMUInterrupt() {
-    mpuReady = true;
+    imuReady = true;
 }
 
 void serialEvent() {
@@ -58,7 +70,7 @@ void serialEvent() {
 
 void writeRotationData() {
     if (echoParams & PARAM_ECHO_ROTATION) {
-        //Serial.println(OUT_ARG_IMU + String(rotation.w) + ";" + rotation.x + ";" + rotation.y + ";" + rotation.z);
+        fixed aRawX(A_X), aRawZ(A_Z);
     }
 }
 
@@ -66,6 +78,36 @@ void writeSonarData() {
     if (echoParams & PARAM_ECHO_SONAR) {
         Serial.println(OUT_ARG_SONAR + sonarWidth);
     }
+}
+
+fixed rot;  // millidegrees
+
+void updateIMU() {
+    //LOG_D("updating data from IMU")
+
+    mpu.getAcceleration(&aRawX, &aRawY, &aRawZ);
+    mpu.getRotation(&gRawX, &gRawY, &gRawZ);
+
+    //fPitch.update(A_X / A_Y, appxTan.getUpper());
+    unsigned long currentTime = micros();
+    int delta = (int) (currentTime - lastRotationUpdate);
+    lastRotationUpdate = currentTime;
+
+    fixed gy(G_Y), ax(A_X), az(A_Z);
+    gy *= fixed(2) * delta / 1000;
+    fixed ratio = -ax / az;
+    fixed accAngle = atan(ratio);
+    rot = (rot + gy) * fixed(250) + accAngle * fixed(4468);
+    //LOG_D("=======")
+    //LOG_D(delta)
+    LOG_D(rot.toString())
+    long outYaw = 0;
+
+    //fixed outPitch = pidPitch.pushError(fPitch.getValue(), fixed(delta,0));
+    //left.setVelocity(outYaw + outPitch);
+    //right.setVelocity(outYaw - outPitch);
+    //imuReady = false;
+    writeRotationData();    
 }
 
 void setup() {
@@ -83,35 +125,21 @@ void setup() {
     pinMode(PIN_SONAR_ECHO, INPUT);
     pinMode(PIN_IMU_INT, INPUT);
 
-    mpu.setInterruptMode(true);
+    mpu.initialize();
+    mpu.setYGyroOffset(0);
+    mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_8);
+    mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_1000);
+    mpu.setRate(100);
+    mpu.setIntEnabled(true);
+    mpu.setIntDataReadyEnabled(true);
     //attachInterrupt(PIN_SONAR_ECHO, onEchoInterrupt, RISING);
-    attachInterrupt(PIN_IMU_INT, onIMUInterrupt, FALLING);
+    //attachInterrupt(PIN_IMU_INT, onIMUInterrupt, FALLING);
 }
 
 void loop() {
     digitalWrite(13, (millis() % 1000) > 500);
 
-    int x, y, z;
-    LOG_D("asdf")
-    mpu.getAcceleration(&x, &y, &z);
-    LOG_D(x)
-    if (mpuReady) {
-        LOG_D("received MPU interrupt")
-        //mpu.dmpGetQuaternion(&rotation, fifoBuffer);
-        //mpu.dmpGetGravity(&gravity, &rotation);
-        //mpu.dmpGetYawPitchRoll(ypr, &rotation, &gravity);
-
-        unsigned long currentTime = micros();
-        unsigned long delta = currentTime - lastRotationUpdate;
-        lastRotationUpdate = currentTime;
-
-        long outYaw = 0;//pidYaw.pushError(0, delta);
-        long outPitch = pidPitch.pushError(ypr[1] - 0, delta);
-        left.setVelocity(outYaw + outPitch);
-        right.setVelocity(outYaw - outPitch);
-        mpuReady = false;
-        writeRotationData();
-    }
+    updateIMU();
 
     /*if (sonarReady) {
         LOG_D("received sonar interrupt")

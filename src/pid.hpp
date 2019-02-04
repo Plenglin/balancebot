@@ -1,16 +1,17 @@
 #pragma once
+#include <fixedpoint.hpp>
 
 class PID {
     private:
-        int kp;
-        int ki;
-        int kd;
+        fixed kp;
+        fixed ki;
+        fixed kd;
 
-        long lastError;
-        long sum;
-        long target;
+        fixed lastError;
+        fixed sum;
+        fixed target;
     public:
-        PID(int kp, int ki, int kd);
-        long pushError(long error, int dt);
-        void setTarget(long target);
+        PID(fixed kp, fixed ki, fixed kd);
+        fixed pushError(fixed error, fixed dt);
+        void setTarget(fixed target);
 };

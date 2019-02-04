@@ -2,20 +2,20 @@
 
 #include "pid.hpp"
 
-PID::PID(int kp, int ki, int kd) : kp(kp), ki(ki), kd(kd), lastError(0), sum(0), target(0) {
+PID::PID(fixed kp, fixed ki, fixed kd) : kp(kp), ki(ki), kd(kd), lastError(0), sum(0), target(0) {
 
 }
 
-long PID::pushError(long error, int dt) {
-    long delta = (lastError - error) / dt;  // might be slow with division
+fixed PID::pushError(fixed error, fixed dt) {
+    fixed delta = (lastError - error) / dt;  // might be slow with division
     sum = sum + error * dt;
 
-    long out = kp * error + ki * sum + kd * delta;
+    fixed out = kp * error + ki * sum + kd * delta;
 
     lastError = error;
     return out;
 }
 
-void PID::setTarget(long target) {
+void PID::setTarget(fixed target) {
     this->target = target;
 }
