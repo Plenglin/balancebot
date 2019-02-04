@@ -37,16 +37,14 @@ int sonarWidth = 0;
 
 unsigned long lastRotationUpdate = 0;
 
-StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR);
-StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR);
+StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR, true, 1500);
+StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR, false, 1500);
 
 PID pidSteps(0, 0, 0);
-PID pidPitch(100, 0, 0);
+PID pidPitch(fixed(3000), fixed(0), fixed(0));
 PID pidYaw(0, 0, 0);
-//ComplementaryFilter fPitch(fixed(0,240));
-//ComplementaryFilter fAccZ(fixed(0,240));
 
-fixed pitch;
+fixed pitch;  // millidegrees? idk wtf these are
 
 void onEchoInterrupt() {
     sonarReady = true;
@@ -80,8 +78,6 @@ void writeSonarData() {
     }
 }
 
-fixed rot;  // millidegrees
-
 void updateIMU() {
     //LOG_D("updating data from IMU")
 
@@ -90,24 +86,20 @@ void updateIMU() {
 
     //fPitch.update(A_X / A_Y, appxTan.getUpper());
     unsigned long currentTime = micros();
-    int delta = (int) (currentTime - lastRotationUpdate);
+    int dt = (int) (currentTime - lastRotationUpdate);
     lastRotationUpdate = currentTime;
 
     fixed gy(G_Y), ax(A_X), az(A_Z);
-    gy *= fixed(2) * delta / 1000;
+    gy *= fixed(2) * dt / 1000;
     fixed ratio = -ax / az;
     fixed accAngle = atan(ratio);
-    rot = (rot + gy) * fixed(250) + accAngle * fixed(4468);
-    //LOG_D("=======")
-    //LOG_D(delta)
-    LOG_D(rot.toString())
-    long outYaw = 0;
+    pitch = (pitch + gy) * fixed(250) + accAngle * fixed(4468);
 
-    //fixed outPitch = pidPitch.pushError(fPitch.getValue(), fixed(delta,0));
-    //left.setVelocity(outYaw + outPitch);
-    //right.setVelocity(outYaw - outPitch);
-    //imuReady = false;
-    writeRotationData();    
+    writeRotationData();
+    long outPitch = -pidPitch.pushError(pitch, dt).getValue() >> 8;
+    LOG_D(pitch.toString() + "\t" + String(outPitch));
+    left.setTargetVelocity(outPitch);
+    right.setTargetVelocity(outPitch);
 }
 
 void setup() {
@@ -134,6 +126,10 @@ void setup() {
     mpu.setIntDataReadyEnabled(true);
     //attachInterrupt(PIN_SONAR_ECHO, onEchoInterrupt, RISING);
     //attachInterrupt(PIN_IMU_INT, onIMUInterrupt, FALLING);
+    left.setEnabled(true);
+    right.setEnabled(true);
+    left.setTargetVelocity(3000);
+    //right.setVelocity(3000);
 }
 
 void loop() {
@@ -167,6 +163,6 @@ void loop() {
         cmdReady = false;
     }
 
-    //left.update();
-    //right.update();
+    left.update();
+    right.update();
 }

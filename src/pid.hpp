@@ -12,6 +12,6 @@ class PID {
         fixed target;
     public:
         PID(fixed kp, fixed ki, fixed kd);
-        fixed pushError(fixed error, fixed dt);
+        fixed pushError(fixed error, int dt);
         void setTarget(fixed target);
 };

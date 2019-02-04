@@ -1,13 +1,13 @@
 #include "stepstick.hpp"
 
 
-StepStick::StepStick(int en, int step, int dir, int ppr) :
-    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr) {
+StepStick::StepStick(int en, int step, int dir, int ppr, bool reverse, long maxAccel) :
+    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr), reverse(reverse), maxAccel(maxAccel), lastUpdate(micros()) {
 
     pinMode(en, OUTPUT);
     pinMode(step, OUTPUT);
     pinMode(dir, OUTPUT);
-    setEnabled(true);
+    setEnabled(false);
 }
 
 void StepStick::setEnabled(bool state) {
@@ -18,6 +18,7 @@ void StepStick::setEnabled(bool state) {
 }
 
 void StepStick::setVelocity(long velocity) {
+    this->velocity = velocity;
     if (velocity < 0) {
         direction = -1;
         velocity = -velocity;
@@ -27,13 +28,17 @@ void StepStick::setVelocity(long velocity) {
         direction = 0;
         return;
     }
-    period = 1000000000 / (abs(velocity) * ppr);
+    period = 1000000000 / (velocity * ppr);
+}
+
+void StepStick::setTargetVelocity(long target) {
+    this->targetVelocity = target;
 }
 
 void StepStick::step(int dir) {
     setEnabled(true);
     nextStep = micros() + period;
-    digitalWrite(pin_dir, dir < 0);
+    digitalWrite(pin_dir, (dir < 0) ^ reverse);
     digitalWrite(pin_step, true);
     delayMicroseconds(STEPSTICK_MIN_DELAY);
     digitalWrite(pin_step, false);    
@@ -45,8 +50,21 @@ unsigned long StepStick::getNextStep() {
 
 void StepStick::update() {
     unsigned long currentTime = micros();
-    if (currentTime >= nextStep) {
+    unsigned long dt = currentTime - lastUpdate;
+
+    long vError = targetVelocity - velocity;
+    if (abs(vError) * dt < (long) (maxAccel * 1000L)) {
+        setVelocity(targetVelocity);
+    } else if (vError > 0) {
+        setVelocity(velocity + maxAccel);
+    } else if (vError < 0) {
+        setVelocity(velocity - maxAccel);
+    }
+
+    if (direction != 0 && currentTime >= nextStep) {
         nextStep = currentTime + period;
         step(direction);
     }
+
+    lastUpdate = currentTime;
 }

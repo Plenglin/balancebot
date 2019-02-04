@@ -6,11 +6,11 @@ PID::PID(fixed kp, fixed ki, fixed kd) : kp(kp), ki(ki), kd(kd), lastError(0), s
 
 }
 
-fixed PID::pushError(fixed error, fixed dt) {
+fixed PID::pushError(fixed error, int dt) {
     fixed delta = (lastError - error) / dt;  // might be slow with division
     sum = sum + error * dt;
 
-    fixed out = kp * error + ki * sum + kd * delta;
+    fixed out = (kp * error) + (ki * sum) + (kd * delta);
 
     lastError = error;
     return out;
