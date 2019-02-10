@@ -1,7 +1,6 @@
 #define LOGLEVEL_DEBUG
 
 #include <Arduino.h>
-#include <I2Cdev.h>
 #include <MPU6050.h>
 
 #include "fixedpoint.hpp"
@@ -45,14 +44,6 @@ PID pidYaw(0, 0, 0);
 
 float pitch;  // millidegrees? idk wtf these are
 
-void onEchoInterrupt() {
-    sonarReady = true;
-}
-
-void onIMUInterrupt() {
-    imuReady = true;
-}
-
 void serialEvent() {
     int i = 0;
     inputCommand = static_cast<char>(Serial.read());
@@ -77,6 +68,51 @@ void writeSonarData() {
     }
 }
 
+void setup() {
+    Serial.begin(COM_BAUD);
+
+    LOG_I("Initializing...")
+    
+    #ifdef JANKY_PIN_13
+    pinMode(13, OUTPUT);
+    digitalWrite(13, HIGH);
+    #endif
+
+    argBuffer.reserve(INPUT_BUFFER_SIZE);
+
+    pinMode(PIN_SONAR_ECHO, INPUT);
+    pinMode(PIN_IMU_INT, INPUT);
+
+    mpu.initialize();
+    mpu.setYGyroOffset(0);
+    mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_8);
+    mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_1000);
+    mpu.setRate(100);
+    mpu.setIntEnabled(true);
+    mpu.setIntDataReadyEnabled(true);
+
+    left.setEnabled(true);
+    right.setEnabled(true);
+
+    // 1000Hz http://www.8bit-era.cz/arduino-timer-interrupts-calculator.html
+
+
+    // TIMER 1 for interrupt frequency 1000 Hz:
+    cli(); // stop interrupts
+    TCCR1A = 0; // set entire TCCR1A register to 0
+    TCCR1B = 0; // same for TCCR1B
+    TCNT1  = 0; // initialize counter value to 0
+    // set compare match register for 1000 Hz increments
+    OCR1A = 15999; // = 16000000 / (1 * 1000) - 1 (must be <65536)
+    // turn on CTC mode
+    TCCR1B |= (1 << WGM12);
+    // Set CS12, CS11 and CS10 bits for 1 prescaler
+    TCCR1B |= (0 << CS12) | (0 << CS11) | (1 << CS10);
+    // enable timer compare interrupt
+    TIMSK1 |= (1 << OCIE1A);
+    sei(); // allow interrupts
+}
+
 void updateIMU() {
     //LOG_D("updating data from IMU")
 
@@ -99,73 +135,22 @@ void updateIMU() {
 
     writeRotationData();
     long outPitch = -pidPitch.pushError(pitch + 90, dt);
-    LOG_D(String(pitch) + "\t" + String(outPitch));
+    //LOG_D(String(pitch) + "\t" + String(outPitch));
     left.setTargetVelocity(outPitch);
     right.setTargetVelocity(outPitch);
-    LOG_D(currentTime)
-}
-
-void setup() {
-    Serial.begin(COM_BAUD);
-
-    LOG_I("Initializing...")
-
-    #ifdef JANKY_PIN_13
-    pinMode(13, OUTPUT);
-    digitalWrite(13, HIGH);
-    #endif
-
-    argBuffer.reserve(INPUT_BUFFER_SIZE);
-
-    pinMode(PIN_SONAR_ECHO, INPUT);
-    pinMode(PIN_IMU_INT, INPUT);
-
-    mpu.initialize();
-    mpu.setYGyroOffset(0);
-    mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_8);
-    mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_1000);
-    mpu.setRate(100);
-    mpu.setIntEnabled(true);
-    mpu.setIntDataReadyEnabled(true);
-    //attachInterrupt(PIN_SONAR_ECHO, onEchoInterrupt, RISING);
-    //attachInterrupt(PIN_IMU_INT, onIMUInterrupt, FALLING);
-    left.setEnabled(false);
-    right.setEnabled(false);
-    //left.setTargetVelocity(10000);
-    //right.setVelocity(3000);
+    //LOG_D(currentTime)
 }
 
 void loop() {
+    #ifndef JANKY_PIN_13
     digitalWrite(13, (millis() % 1000) > 500);
+    #endif
+    LOG_D(left.getStepCount())
+    
+    updateIMU();
+}
 
-    //updateIMU();
-
-    /*if (sonarReady) {
-        LOG_D("received sonar interrupt")
-        sonarWidth = pulseIn(PIN_SONAR_ECHO, true);
-        digitalWrite(PIN_SONAR_TRIG, true);
-        delayMicroseconds(SONAR_MIN_DELAY);
-        digitalWrite(PIN_SONAR_TRIG, false);
-        sonarReady = false;
-        writeSonarData();
-    }*/
-
-    if (cmdReady) {
-        switch (inputCommand) {
-            case IN_ARG_SET_ECHO_PARAMS:
-                echoParams = argBuffer.charAt(0);
-                break;
-            case IN_ARG_SET_PITCH:
-                pidPitch.setTarget(argBuffer.toInt());
-                break;
-            case IN_ARG_SET_YAW: 
-                pidYaw.setTarget(argBuffer.toInt());
-                break;
-        }
-        Serial.println(OUT_ARG_ACK);
-        cmdReady = false;
-    }
-
+ISR(TIMER1_COMPA_vect) {
     left.update();
     right.update();
 }

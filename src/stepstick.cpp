@@ -2,7 +2,7 @@
 
 
 StepStick::StepStick(int en, int step, int dir, int ppr, bool reverse, long maxAccel) :
-    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr), reverse(reverse), maxAccel(maxAccel), lastUpdate(micros()) {
+    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr), reverse(reverse), maxAccel(maxAccel) {
 
     pinMode(en, OUTPUT);
     pinMode(step, OUTPUT);
@@ -26,43 +26,37 @@ void StepStick::setVelocity(long velocity) {
         direction = 0;
         return;
     }
-    period = 1000000000 / (velocity * ppr);
+    period = 1000000 / (velocity * ppr);
+    nextStep = lastStep + period;
 }
 
 void StepStick::setTargetVelocity(long target) {
-    this->targetVelocity = target;
+    setVelocity(target);
 }
 
 void StepStick::step(int dir) {
-    //setEnabled(true);
     nextStep = micros() + period;
-    digitalWrite(pin_dir, (dir < 0) ^ reverse);
+    steps += dir;
+    digitalWrite(pin_dir, ((dir < 0) ^ reverse) != 0);
     digitalWrite(pin_step, true);
-    delayMicroseconds(STEPSTICK_MIN_DELAY);
-    digitalWrite(pin_step, false);    
-}
-
-unsigned long StepStick::getNextStep() {
-    return nextStep;
+    delayMicroseconds(STEPSTICK_MIN_PULSE);
+    digitalWrite(pin_step, false);
 }
 
 void StepStick::update() {
-    unsigned long currentTime = micros();
-    unsigned long dt = currentTime - lastUpdate;
-
-    long vError = targetVelocity - velocity;
-    if ((unsigned long) (abs(vError) * dt) < (unsigned long) (maxAccel * 1000L)) {
-        setVelocity(targetVelocity);
-    } else if (vError > 0) {
-        setVelocity(velocity + maxAccel);
-    } else if (vError < 0) {
-        setVelocity(velocity - maxAccel);
-    }
-
-    if (direction != 0 && currentTime >= nextStep) {
-        nextStep = currentTime + period;
+    if (updateCount >= nextStep) {
+        lastStep = updateCount;
+        nextStep = updateCount + period;
         step(direction);
     }
-
-    lastUpdate = currentTime;
+    updateCount++;
 }
+
+long StepStick::getStepCount() {
+    return steps;
+}
+
+unsigned long StepStick::getUpdateCount() {
+    return updateCount;
+}
+

@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 
-#define STEPSTICK_MIN_DELAY 10
+#define STEPSTICK_MIN_PULSE 20
 
 /**
  * A StepStick effectively used as a DC motor.
@@ -14,12 +14,14 @@ class StepStick {
         int pin_dir;
         
         int ppr;
-        long steps;
         bool enabled;
         bool reverse;
 
-        unsigned long nextStep;
-        unsigned long lastUpdate;
+        volatile unsigned long nextStep;
+        volatile unsigned long lastStep = 0;
+        volatile unsigned long updateCount;
+        volatile long steps;
+        
         long maxAccel;
         unsigned int period;
         long targetVelocity = 0;
@@ -31,9 +33,14 @@ class StepStick {
         void step(int dir);
         void setEnabled(bool state);
         /**
-         * in millirevolutions/second
+         * in millirevolutions/second (i.e. v = 1000 is 1 rev/sec)
          */
         void setTargetVelocity(long velocity);
-        unsigned long getNextStep();
+        /**
+         * Expected to be called at 1024Hz
+         */
         void update();
+
+        unsigned long getUpdateCount();
+        long getStepCount();
 };
