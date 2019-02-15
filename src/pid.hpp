@@ -1,5 +1,4 @@
 #pragma once
-#include <fixedpoint.hpp>
 
 class PID {
     private:
@@ -12,6 +11,6 @@ class PID {
         float target;
     public:
         PID(float kp, float ki, float kd);
-        float pushError(float error, int dt);
+        float push(float error, float dt);
         void setTarget(float target);
 };

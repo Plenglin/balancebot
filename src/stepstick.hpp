@@ -27,9 +27,10 @@ class StepStick {
         long targetVelocity = 0;
         long velocity = 0;
         int direction = 0;
+        unsigned int deadzone;
         void setVelocity(long velocity);
     public:
-        StepStick(int en, int step, int dir, int ppr, bool reverse, long maxAccel);
+        StepStick(int en, int step, int dir, int ppr, bool reverse, long maxAccel, unsigned int deadzone = 0);
         void step(int dir);
         void setEnabled(bool state);
         /**

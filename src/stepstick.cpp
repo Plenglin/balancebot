@@ -1,8 +1,8 @@
 #include "stepstick.hpp"
 
 
-StepStick::StepStick(int en, int step, int dir, int ppr, bool reverse, long maxAccel) :
-    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr), reverse(reverse), maxAccel(maxAccel) {
+StepStick::StepStick(int en, int step, int dir, int ppr, bool reverse, long maxAccel, unsigned int deadzone) :
+    pin_en(en), pin_step(step), pin_dir(dir), ppr(ppr), reverse(reverse), maxAccel(maxAccel), deadzone(deadzone) {
 
     pinMode(en, OUTPUT);
     pinMode(step, OUTPUT);
@@ -17,16 +17,17 @@ void StepStick::setEnabled(bool state) {
 
 void StepStick::setVelocity(long velocity) {
     this->velocity = velocity;
-    if (velocity < 0) {
-        direction = -1;
-        velocity = -velocity;
-    } else if (velocity > 0) {
-        direction = 1;
-    } else {
+    unsigned long speed = abs(velocity);
+    if (velocity == 0 || speed <= deadzone) {
         direction = 0;
         return;
     }
-    period = 1000000 / (velocity * ppr);
+    if (velocity < 0) {
+        direction = -1;
+    } else if (velocity > 0) {
+        direction = 1;
+    }
+    period = 1000000 / (speed * ppr);
     nextStep = lastStep + period;
 }
 

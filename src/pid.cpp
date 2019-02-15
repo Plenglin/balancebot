@@ -6,7 +6,8 @@ PID::PID(float kp, float ki, float kd) : kp(kp), ki(ki), kd(kd), lastError(0), s
 
 }
 
-float PID::pushError(float error, int dt) {
+float PID::push(float fb, float dt) {
+    float error = target - fb;
     float delta = (lastError - error) / dt;  // might be slow with division
     sum = sum + error * dt;
 
