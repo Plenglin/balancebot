@@ -9,6 +9,7 @@
 
 #include "stepstick.hpp"
 #include "pid.hpp"
+#include "filter.hpp"
 
 #include "constants.hpp"
 #include "ioconstants.hpp"
@@ -36,8 +37,15 @@ StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR, true, 1000,
 StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR, false, 1000, 200);
 
 PID pidSteps(0, 0, 0);
-PID pidPitch(200, 0, 0);
+PID pidPitch(150, 0, 0);
 PID pidYaw(0, 0, 0);
+
+SMA<10> accTime;  // for averaging over a time
+SMA<10> azMean;
+SMA<10> axMean;
+DCBlocker azDC(0.995);
+DCBlocker axDC(0.995);
+DCBlocker gyDC(0.995);
 
 float pitch;  // degrees
 
@@ -101,6 +109,8 @@ void setup() {
         LOG_F("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
         while(1) delay(1000);
     }
+    gyro.enableAutoRange(false);
+    accel.enableAutoRange(false);
 
 
     LOG_D("Enabling stepper motors")
@@ -144,23 +154,34 @@ void updateIMU() {
     lastRotationUpdate = currentTime;
     float dt = dtLong / 1000000.0;
 
-    float gy = -evGyro.gyro.y * dt;
-    float accAngle = atan2(-evAccel.acceleration.z, evAccel.acceleration.x) - 0.1;
-    pitch = (pitch + gy) * 0.9975 + accAngle * 0.0025;
+    accTime.push(dt);
+    axMean.push(evAccel.acceleration.x);
+    azMean.push(evAccel.acceleration.z);
+    
+    float accWindow = accTime.getSum();
+
+    float gy = -(evGyro.gyro.y + .01737) * dt;
+    gy = gyDC.push(gy);
+    float ax = axDC.push(axMean.getSum() / accWindow);
+    float az = axDC.push(azMean.getSum() / accWindow);
+    float accAngle = atan2(az, -ax) + 0.07;
+    pitch = (pitch + gy) * 0.99 + accAngle * 0.01;
+    //pitch +=gy;
 
     float degPitch = degrees(pitch);
 
     writeRotationData();
     float outPitch = pidPitch.push(degPitch, dt);
-    LOG_D(String(dt) + "\t" + String(degPitch) + "\t" + String(accAngle));
+    LOG_D(String(degPitch) + "\t" + String(az) + "\t" + String(ax));
     left.setTargetVelocity((long) outPitch);
     right.setTargetVelocity((long) outPitch);
+    //left.setTargetVelocity(1000);
     //LOG_D(currentTime)
 }
 
 void loop() {
     #ifndef JANKY_PIN_13
-    digitalWrite(13, (millis() % 1000) > 500);
+    digitalWrite(13, (millis() % 500) > 250);
     #endif
     //LOG_D(left.getStepCount())
     
