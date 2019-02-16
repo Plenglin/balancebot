@@ -145,7 +145,7 @@ void updateIMU() {
     float dt = dtLong / 1000000.0;
 
     float gy = -evGyro.gyro.y * dt;
-    float accAngle = atan2(-evAccel.acceleration.z, evAccel.acceleration.x);
+    float accAngle = atan2(-evAccel.acceleration.z, evAccel.acceleration.x) - 0.1;
     pitch = (pitch + gy) * 0.9975 + accAngle * 0.0025;
 
     float degPitch = degrees(pitch);
