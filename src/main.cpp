@@ -1,7 +1,11 @@
 #define LOGLEVEL_DEBUG
 
 #include <Arduino.h>
-#include <MPU6050.h>
+#include <Wire.h>
+#include <Adafruit_Sensor.h>
+#include <Adafruit_LSM303_U.h>
+#include <Adafruit_L3GD20_U.h>
+#include <Adafruit_9DOF.h>
 
 #include "stepstick.hpp"
 #include "pid.hpp"
@@ -9,14 +13,6 @@
 #include "constants.hpp"
 #include "ioconstants.hpp"
 #include "log.hpp"
-
-// if reorientation is necessary
-#define A_X -aRawZ
-#define A_Y aRawY
-#define A_Z aRawX
-#define G_X -gRawZ
-#define G_Y gRawY
-#define G_Z gRawX
 
 volatile bool cmdReady = false;
 volatile bool imuReady = false;
@@ -28,8 +24,10 @@ char inputCommand;
 String argBuffer = "";
 
 uint8_t fifoBuffer[64];
-int16_t aRawX, aRawY, aRawZ, gRawX, gRawY, gRawZ;
-MPU6050 mpu;
+
+Adafruit_LSM303_Accel_Unified accel = Adafruit_LSM303_Accel_Unified(30301);
+Adafruit_LSM303_Mag_Unified   mag   = Adafruit_LSM303_Mag_Unified(30302);
+Adafruit_L3GD20_Unified gyro = Adafruit_L3GD20_Unified(21234);
 int sonarWidth = 0;
 
 unsigned long lastRotationUpdate = 0;
@@ -38,7 +36,7 @@ StepStick left(PIN_LEFT_EN, PIN_LEFT_STP, PIN_LEFT_DIR, STEPPER_PPR, true, 1000,
 StepStick right(PIN_RIGHT_EN, PIN_RIGHT_STP, PIN_RIGHT_DIR, STEPPER_PPR, false, 1000, 200);
 
 PID pidSteps(0, 0, 0);
-PID pidPitch(300, 0, 0);
+PID pidPitch(200, 0, 0);
 PID pidYaw(0, 0, 0);
 
 float pitch;  // degrees
@@ -82,19 +80,36 @@ void setup() {
     pinMode(PIN_SONAR_ECHO, INPUT);
     pinMode(PIN_IMU_INT, INPUT);
 
-    mpu.initialize();
-    mpu.setYGyroOffset(0);
-    mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_16);
-    mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_1000);
-    mpu.setRate(100);
-    mpu.setIntEnabled(true);
-    mpu.setIntDataReadyEnabled(true);
+    /* Initialise the sensors */
+    LOG_D("Setting up accelerometer")
+    if(!accel.begin()) {
+        /* There was a problem detecting the ADXL345 ... check your connections */
+        LOG_F("Ooops, no LSM303 detected ... Check your wiring!");
+        while(1) delay(1000);
+    }
 
+    LOG_D("Setting up magnetometer")
+    if(!mag.begin()) {
+        /* There was a problem detecting the LSM303 ... check your connections */
+        LOG_F("Ooops, no LSM303 detected ... Check your wiring!");
+        while(1) delay(1000);
+    }
+    
+    LOG_D("Setting up gyro")
+    if(!gyro.begin(GYRO_RANGE_2000DPS)) {
+        /* There was a problem detecting the L3GD20 ... check your connections */
+        LOG_F("Ooops, no L3GD20 detected ... Check your wiring or I2C ADDR!");
+        while(1) delay(1000);
+    }
+
+
+    LOG_D("Enabling stepper motors")
     left.setEnabled(true);
     right.setEnabled(true);
 
     pidPitch.setTarget(0);
 
+    LOG_D("Setting up timer interrupts")
     // 1000Hz http://www.8bit-era.cz/arduino-timer-interrupts-calculator.html
     // TIMER 1 for interrupt frequency 1000 Hz:
     cli(); // stop interrupts
@@ -113,28 +128,31 @@ void setup() {
 }
 
 void updateIMU() {
-    //LOG_D("updating data from IMU")
+    
+    /* Get a new sensor event */
+    sensors_event_t evAccel;
+    sensors_event_t evMag;
+    sensors_event_t evGyro;
+    
+    /* Display the results (acceleration is measured in m/s^2) */
+    accel.getEvent(&evAccel);
+    mag.getEvent(&evMag);
+    gyro.getEvent(&evGyro);
 
-    mpu.getAcceleration(&aRawX, &aRawY, &aRawZ);
-    mpu.getRotation(&gRawX, &gRawY, &gRawZ);
-
-    //fPitch.update(A_X / A_Y, appxTan.getUpper());
     unsigned long currentTime = micros();
-    float dt = (currentTime - lastRotationUpdate) / 1000000.0;
+    unsigned long dtLong = currentTime - lastRotationUpdate;
     lastRotationUpdate = currentTime;
+    float dt = dtLong / 1000000.0;
 
-    float gy = (G_Y - 8.69) * 0.0152588 * dt;  // the proper number should be 0.030517578 but idk why I have to div by 2
-    float ax = A_X;
-    float az = A_Z;
-    //float ratio = -ax / az;
-    float accAngle = -57.29577795 * atan2(ax, az) - 11.12;
+    float gy = -evGyro.gyro.y * dt;
+    float accAngle = atan2(-evAccel.acceleration.z, evAccel.acceleration.x);
     pitch = (pitch + gy) * 0.9975 + accAngle * 0.0025;
-    //pitch = accAngle;
-    pitch += gy;
+
+    float degPitch = degrees(pitch);
 
     writeRotationData();
-    float outPitch = pidPitch.push(pitch, dt);
-    LOG_D(String(currentTime) + "\t" + String(pitch) + "\t" + String(accAngle));
+    float outPitch = pidPitch.push(degPitch, dt);
+    LOG_D(String(dt) + "\t" + String(degPitch) + "\t" + String(accAngle));
     left.setTargetVelocity((long) outPitch);
     right.setTargetVelocity((long) outPitch);
     //LOG_D(currentTime)
